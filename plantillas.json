@@ -1,0 +1,51 @@
+{
+  "hashtags_base": ["#GTA6", "#GTAVI", "#GTA", "#gaming", "#PS5", "#Rockstar", "#videojuegos", "#gamer"],
+  "cta": "Sígueme para más GTA 6",
+  "tipos": {
+    "general": {
+      "ganchos": ["Esto en GTA 6 es una locura", "GTA 6 no deja de sorprenderme", "Nadie habla de esto de GTA 6"],
+      "pregunta": "¿Qué os parece?",
+      "hashtags": ["#GTA6Gameplay", "#Leonida"],
+      "descripcion_yt": "Clips diarios de GTA 6 en español. Suscríbete para no perderte nada."
+    },
+    "momento": {
+      "ganchos": [
+        "No me esperaba esto en GTA 6 😳",
+        "Esto solo pasa en GTA 6 💀",
+        "GTA 6 es demasiado realista 🤯",
+        "Espera al final 👀",
+        "Lo que pasó aquí no tiene sentido 😂",
+        "La IA de GTA 6 es otro nivel",
+        "Rockstar pensó en TODO",
+        "Mi primera partida a GTA 6 fue así"
+      ],
+      "pregunta": "¿Os ha pasado algo parecido?",
+      "hashtags": ["#GTA6Gameplay", "#GTA6Funny"],
+      "descripcion_yt": "Momentos de GTA 6 cada día. Suscríbete para más."
+    },
+    "truco": {
+      "ganchos": ["Truco de GTA 6 que nadie te cuenta 🤫", "Haz esto en GTA 6 ya", "El secreto mejor guardado de GTA 6"],
+      "pregunta": "¿Lo sabíais? Guárdalo para luego",
+      "hashtags": ["#GTA6Tips", "#GTA6Trucos", "#GTA6Secrets"],
+      "descripcion_yt": "Trucos, secretos y easter eggs de GTA 6 en español."
+    },
+    "comparativa": {
+      "ganchos": ["GTA 5 vs GTA 6: la diferencia es brutal", "13 años de diferencia se notan", "¿De verdad ha mejorado tanto?"],
+      "pregunta": "¿Cuál es mejor? Comenta 5 o 6",
+      "hashtags": ["#GTA5vsGTA6", "#GTA5", "#GTAV"],
+      "descripcion_yt": "Comparativas GTA 5 vs GTA 6 en español. ¿Qué comparo en el siguiente?"
+    },
+    "decide": {
+      "ganchos": ["TÚ DECIDES qué hago en GTA 6", "Vosotros elegís, yo lo hago"],
+      "pregunta": "Comenta A o B: lo más votado es lo que haré en la siguiente parte",
+      "hashtags": ["#GTA6Challenge", "#TuDecides"],
+      "descripcion_yt": "Serie donde vosotros decidís. Vota en los comentarios: la opción más votada va en el siguiente vídeo."
+    },
+    "historia": {
+      "ganchos": ["GTA 6 - Historia (SPOILERS)"],
+      "pregunta": "¿Seguimos con la siguiente parte?",
+      "hashtags": ["#GTA6Story", "#GTA6Spoilers", "#Lucia", "#Jason"],
+      "descripcion_yt": "⚠️ SPOILERS. La historia de GTA 6 por partes, comentada en español."
+    }
+  }
+}

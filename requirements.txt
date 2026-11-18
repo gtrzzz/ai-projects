@@ -1,0 +1,4 @@
+faster-whisper>=1.1
+# Librerías CUDA para que Whisper use la GPU NVIDIA en Windows
+nvidia-cublas-cu12
+nvidia-cudnn-cu12==9.*

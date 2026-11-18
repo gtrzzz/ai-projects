@@ -1,0 +1,23 @@
+# Entornos y dependencias
+.venv/
+__pycache__/
+*.pyc
+remotion/node_modules/
+
+# Vídeos y resultados (no se suben)
+entrada/*
+salida/*
+!entrada/.gitkeep
+!salida/.gitkeep
+remotion/public/_tmp/
+remotion/out/
+*.mp4
+*.webm
+*.mov
+*.mkv
+*.wav
+*.m4a
+
+# Sistema
+.DS_Store
+Thumbs.db
