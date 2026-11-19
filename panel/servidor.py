@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import time
@@ -331,7 +332,8 @@ def main() -> None:
     app.state.cola.reanudar(raiz)
     app.state.cola.iniciar()
     threading.Thread(target=vigilar, args=(app, raiz), daemon=True, name="vigilante").start()
-    threading.Timer(1.5, lambda: webbrowser.open(URL_BASE)).start()
+    if not os.environ.get("CLIPPER_SIN_NAVEGADOR"):
+        threading.Timer(1.5, lambda: webbrowser.open(URL_BASE)).start()
     clipper.log(f"Panel en {URL_BASE} (cierra esta ventana para apagarlo)")
     uvicorn.run(app, host=HOST, port=PUERTO, log_level="warning")
 

@@ -7,7 +7,14 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "types": [
+      "vite/client"
+    ]
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "panel",
+    "vite.config.ts"
+  ]
 }
