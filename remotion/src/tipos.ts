@@ -1,8 +1,21 @@
 export type Palabra = { i: number; f: number; t: string }; // inicio, fin (s), texto
 
+// Cómo se pasa el vídeo horizontal a vertical (igual que el antiguo filtro_vertical de clipper.py)
+//   zoom:    juego grande en el centro, fondo difuminado
+//   blur:    juego entero sin recortar (contain), fondo difuminado. Con vídeos verticales llena la pantalla
+//   recorte: pantalla completa, se pierden los laterales
+//   base:    el vídeo ya viene compuesto en vertical (comparativas, --voz): se pone tal cual
+export type Modo = "zoom" | "blur" | "recorte" | "base";
+
 export type ClipProps = {
-  video: string; // ruta dentro de public/, p. ej. "_tmp/clip.mp4"
-  duracion: number; // segundos
+  video: string; // URL http(s) o ruta dentro de public/, p. ej. "_tmp/clip.mp4"
+  inicio: number; // segundo de la fuente donde empieza el clip
+  fin: number; // segundo de la fuente donde acaba
+  modo: Modo;
+  centro: number; // 0 = izquierda, 1 = derecha (al recortar)
+  fuenteAncho: number;
+  fuenteAlto: number;
+  duracion: number; // segundos (fin - inicio)
   fps: number;
   titulo: string | null; // gancho superior
   palabras: Palabra[]; // subtítulos palabra a palabra
@@ -15,7 +28,13 @@ export type ClipProps = {
 };
 
 export const EJEMPLO: ClipProps = {
-  video: "_tmp/ejemplo.mp4",
+  video: "_tmp/prueba.mp4",
+  inicio: 5,
+  fin: 15,
+  modo: "zoom",
+  centro: 0.5,
+  fuenteAncho: 1920,
+  fuenteAlto: 1080,
   duracion: 10,
   fps: 60,
   titulo: "Cocodrilos en GTA 6 😳",

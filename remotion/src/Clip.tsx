@@ -10,7 +10,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { loadFont } from "@remotion/google-fonts/Montserrat";
-import { ClipProps, Palabra } from "./tipos";
+import { ClipProps, Modo, Palabra } from "./tipos";
 import { emojiPara } from "./emojis";
 
 const { fontFamily } = loadFont("normal", { weights: ["800", "900"], subsets: ["latin", "latin-ext"] });
@@ -22,27 +22,93 @@ const contorno = (px: number): React.CSSProperties => ({
   textShadow: "0 8px 0 rgba(0,0,0,0.55)",
 });
 
-// ------------------------------------------------------------------ vídeo con zoom en el momento clave
+// ------------------------------------------------------------------ vídeo vertical + zoom en el momento clave
 
-const VideoConZoom: React.FC<{ video: string; zoomEn: number | null }> = ({ video, zoomEn }) => {
+const ANCHO = 1080;
+const ALTO = 1920;
+
+const fuenteDe = (video: string) => (/^https?:\/\//.test(video) ? video : staticFile(video));
+
+type Caja = { left: number; top: number; width: number; height: number };
+
+// Misma geometría que el antiguo filtro_vertical de clipper.py
+export const cajaDelante = (modo: Modo, fw: number, fh: number, centro: number): Caja => {
+  let width: number;
+  let height: number;
+  if (modo === "recorte") {
+    height = ALTO;
+    width = (ALTO * fw) / fh;
+  } else if (modo === "zoom") {
+    width = ANCHO * 1.45;
+    height = (width * fh) / fw;
+  } else if (modo === "blur") {
+    const escala = Math.min(ANCHO / fw, ALTO / fh);
+    width = fw * escala;
+    height = fh * escala;
+  } else {
+    return { left: 0, top: 0, width: ANCHO, height: ALTO };
+  }
+  const left = width > ANCHO ? -(width - ANCHO) * centro : (ANCHO - width) / 2;
+  return { left, top: (ALTO - height) / 2, width, height };
+};
+
+// Fondo: el mismo vídeo cubriendo la pantalla, difuminado y algo más oscuro
+const cajaFondo = (fw: number, fh: number): Caja => {
+  const escala = Math.max(ANCHO / fw, ALTO / fh) * 1.08;
+  const width = fw * escala;
+  const height = fh * escala;
+  return { left: (ANCHO - width) / 2, top: (ALTO - height) / 2, width, height };
+};
+
+const VideoEn: React.FC<{ src: string; caja: Caja; desde: number; hasta: number; silencio?: boolean;
+  estilo?: React.CSSProperties }> = ({ src, caja, desde, hasta, silencio, estilo }) => (
+  <OffthreadVideo
+    src={src}
+    trimBefore={desde}
+    trimAfter={hasta}
+    muted={silencio}
+    style={{ position: "absolute", ...caja, objectFit: "fill", ...estilo }}
+  />
+);
+
+const escalaZoom = (frame: number, fps: number, zoomEn: number | null): { escala: number; sacudida: number } => {
+  if (zoomEn === null) return { escala: 1, sacudida: 0 };
+  const z = zoomEn * fps;
+  const escala = interpolate(frame, [z - 0.12 * fps, z, z + 1.1 * fps, z + 1.5 * fps], [1, 1.16, 1.16, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: Easing.out(Easing.cubic),
+  });
+  // pequeña sacudida de cámara justo en el impacto
+  const t = frame - z;
+  const sacudida = t >= 0 && t < 0.3 * fps ? Math.sin(t * 2.2) * 10 * (1 - t / (0.3 * fps)) : 0;
+  return { escala, sacudida };
+};
+
+const VideoVertical: React.FC<{ p: ClipProps }> = ({ p }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  let escala = 1;
-  let sacudida = 0;
-  if (zoomEn !== null) {
-    const z = zoomEn * fps;
-    escala = interpolate(frame, [z - 0.12 * fps, z, z + 1.1 * fps, z + 1.5 * fps], [1, 1.16, 1.16, 1], {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-      easing: Easing.out(Easing.cubic),
-    });
-    // pequeña sacudida de cámara justo en el impacto
-    const t = frame - z;
-    if (t >= 0 && t < 0.3 * fps) sacudida = Math.sin(t * 2.2) * 10 * (1 - t / (0.3 * fps));
-  }
+  const src = fuenteDe(p.video);
+  const desde = Math.round(p.inicio * fps);
+  const hasta = Math.round(p.fin * fps);
+  const { escala, sacudida } = escalaZoom(frame, fps, p.zoomEn);
+  const movimiento = { transform: `scale(${escala}) translate(${sacudida}px, ${sacudida * 0.6}px)` };
+  const conFondo = p.modo === "zoom" || p.modo === "blur";
   return (
-    <AbsoluteFill style={{ transform: `scale(${escala}) translate(${sacudida}px, ${sacudida * 0.6}px)` }}>
-      <OffthreadVideo src={staticFile(video)} style={{ width: "100%", height: "100%" }} />
+    <AbsoluteFill style={{ overflow: "hidden" }}>
+      {conFondo && (
+        <VideoEn
+          src={src}
+          caja={cajaFondo(p.fuenteAncho, p.fuenteAlto)}
+          desde={desde}
+          hasta={hasta}
+          silencio
+          estilo={{ filter: "blur(48px) brightness(0.85) saturate(1.2)" }}
+        />
+      )}
+      <AbsoluteFill style={movimiento}>
+        <VideoEn src={src} caja={cajaDelante(p.modo, p.fuenteAncho, p.fuenteAlto, p.centro)} desde={desde} hasta={hasta} />
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };
@@ -317,7 +383,7 @@ export const Clip: React.FC<ClipProps> = (p) => {
   const frame = useCurrentFrame();
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
-      <VideoConZoom video={p.video} zoomEn={p.zoomEn} />
+      <VideoVertical p={p} />
       {p.etiquetas.map((e, k) => (
         <Etiqueta key={k} texto={e.texto} y={e.y} retraso={k * 6} />
       ))}
