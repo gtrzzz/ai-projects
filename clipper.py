@@ -88,6 +88,19 @@ class InfoVideo:
     alto: int
     hdr: bool
     tiene_audio: bool
+    fps: float = 60.0
+
+
+def _fps_de(texto: str | None) -> float:
+    """'60000/1001' -> 59.94. Sin dato válido, 60. Nunca más de 60."""
+    try:
+        num, _, den = str(texto).partition("/")
+        valor = float(num) / float(den or 1)
+    except (ValueError, ZeroDivisionError):
+        valor = 0.0
+    if valor <= 0:
+        return 60.0
+    return round(min(valor, 60.0), 3)
 
 
 @functools.cache
@@ -106,6 +119,8 @@ def analizar_archivo(ruta: Path) -> InfoVideo:
         alto=int(video["height"]),
         hdr=video.get("color_transfer") in ("smpte2084", "arib-std-b67"),
         tiene_audio=any(s["codec_type"] == "audio" for s in datos["streams"]),
+        fps=_fps_de(video.get("avg_frame_rate") if video.get("avg_frame_rate") not in (None, "0/0")
+                    else video.get("r_frame_rate")),
     )
 
 
