@@ -181,7 +181,8 @@ def crear_app(raiz: Path, cola: trabajos.Cola | None = None, url_base: str = URL
             if set(cambios) - permitidos:
                 raise HTTPException(422, f"No se puede cambiar: {', '.join(sorted(set(cambios) - permitidos))}")
             inicio, fin = float(cambios.get("inicio", m.inicio)), float(cambios.get("fin", m.fin))
-            validar_tiempos(p, inicio, fin)
+            if "inicio" in cambios or "fin" in cambios:
+                validar_tiempos(p, inicio, fin)
             if cambios.get("estado", m.estado) not in ESTADOS_MOMENTO:
                 raise HTTPException(422, "Estado no válido")
             if cambios.get("zoom", m.zoom) not in ("auto", "no", "fijo"):

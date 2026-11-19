@@ -56,9 +56,12 @@ def proponer(p: Proyecto, an: detector.Analisis | None, palabras: list, ajustes:
         segs = detector.elegir_segmentos(an, palabras, max_clips=o.clips, dur_obj=o.duracion_clip,
                                          dur_max=o.duracion_max, exacto=o.exacto)
         for n, s in enumerate(segs, 1):
-            nuevos.append(Momento(id=_nuevo_id(), inicio=float(s.inicio), fin=float(s.fin),
+            fin = min(float(s.fin), round(p.duracion, 3))  # el análisis redondea a segundos enteros
+            if fin - s.inicio < 1:
+                continue
+            nuevos.append(Momento(id=_nuevo_id(), inicio=float(s.inicio), fin=fin,
                                   titulo=clipper.gancho_automatico(o.tipo, f"{p.nombre}{n}"),
-                                  zoom_auto=zoom(s.inicio, s.fin), puntuacion=s.puntuacion, motivos=s.motivos))
+                                  zoom_auto=zoom(s.inicio, fin), puntuacion=s.puntuacion, motivos=s.motivos))
     nuevos = [m for m in nuevos if not any(_solapa(m, c) for c in conservados)]
     return sorted(conservados + nuevos, key=lambda m: m.inicio)
 

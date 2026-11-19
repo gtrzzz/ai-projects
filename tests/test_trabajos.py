@@ -148,3 +148,13 @@ def test_sin_revision_encola_render(tmp_path, falsos):
     p = cargar(tmp_path, "p1")
     assert all(m.estado == "aprobado" for m in p.momentos)
     assert [(t["tipo"], t["pid"]) for t in cola.estado()] == [("render", "p1")]
+
+
+def test_proponer_no_pasa_del_final(tmp_path):
+    """El análisis redondea a segundos (201) aunque el vídeo dure 200,7 s: ningún momento acaba después."""
+    p = nuevo_proyecto(tmp_path, duracion=200.7)
+    p.opciones.modo_momentos = "auto"
+    s = [0.1] * 201
+    s[190:201] = [1.0] * 11
+    ms = tr.proponer(p, analisis_con_puntuacion(s), [], AJUSTES_POR_DEFECTO)
+    assert ms and all(m.fin <= 200.7 for m in ms)

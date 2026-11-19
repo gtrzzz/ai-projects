@@ -186,3 +186,11 @@ def test_subir_video_ilegible_no_encola(cliente, cola, monkeypatch):
     monkeypatch.setattr(clipper, "analizar_archivo", no_se_lee)
     r = cliente.post("/api/subir", files={"archivos": ("roto.mp4", b"basura", "video/mp4")})
     assert r.status_code == 200 and cola.estado() == []
+
+
+def test_aprobar_no_revalida_tiempos(cliente, proyecto, raiz):
+    """Aprobar o retitular no debe fallar por unos tiempos que el usuario no ha tocado."""
+    p = cargar(raiz, proyecto.id)
+    p.momentos[0].fin = p.duracion + 0.3
+    guardar(raiz, p)
+    assert cliente.patch(f"/api/proyectos/{proyecto.id}/momentos/m1", json={"estado": "aprobado"}).status_code == 200
