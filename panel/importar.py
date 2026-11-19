@@ -93,7 +93,8 @@ def _crear(raiz: Path, nombre: str, clave: str, flujo: BinaryIO, tamaño: int, a
            al_progresar=None) -> Proyecto:
     raiz = Path(raiz)
     existente = _por_clave(raiz).get(clave)
-    if existente and existente.estado != "liberado":
+    sin_video = existente is not None and not (carpeta(raiz, existente.id) / existente.fuente).exists()
+    if existente and not (existente.estado in ("liberado", "error") and sin_video):
         return existente
     ext = Path(nombre).suffix.lower()
     pid = existente.id if existente else id_para(nombre, clave)
@@ -101,10 +102,26 @@ def _crear(raiz: Path, nombre: str, clave: str, flujo: BinaryIO, tamaño: int, a
     d.mkdir(parents=True, exist_ok=True)
     fuente = f"fuente{ext}"
     _copiar(flujo, d / fuente, tamaño, al_progresar)
-    info = clipper.analizar_archivo(d / fuente)
-    if existente:  # vuelve tras "Liberar espacio": conserva transcripción, análisis y momentos
+    try:
+        info = clipper.analizar_archivo(d / fuente)
+    except (Exception, SystemExit):
+        # vídeo dañado: no se guarda la copia (ocupa GB) y queda en error para no copiarlo en bucle
+        (d / fuente).unlink(missing_ok=True)
+        info = None
+    if info is None:
+        p = existente or Proyecto(id=pid, nombre=nombre, clave=clave, fuente=fuente, preparado=None, duracion=0.0,
+                                  ancho=0, alto=0, fps=60.0, hdr=False, tiene_audio=False, estado="error",
+                                  progreso=0.0, error=None, opciones=Opciones.desde_ajustes(ajustes), momentos=[],
+                                  creado=datetime.now().isoformat(timespec="seconds"))
+        p.estado = "error"
+        p.error = "No se puede leer el vídeo (¿está dañado o sin terminar de copiar?). Arréglalo y vuelve a arrastrarlo."
+        guardar(raiz, p)
+        return p
+    if existente:  # vuelve tras "Liberar espacio" o tras un error: conserva transcripción, análisis y momentos
         p = existente
         p.fuente, p.preparado, p.estado, p.progreso, p.error = fuente, None, "en_cola", 0.0, None
+        p.duracion, p.ancho, p.alto, p.fps, p.hdr, p.tiene_audio = (info.duracion, info.ancho, info.alto, info.fps,
+                                                                    info.hdr, info.tiene_audio)
     else:
         p = Proyecto(id=pid, nombre=nombre, clave=clave, fuente=fuente, preparado=None, duracion=info.duracion,
                      ancho=info.ancho, alto=info.alto, fps=info.fps, hdr=info.hdr, tiene_audio=info.tiene_audio,

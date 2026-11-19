@@ -150,7 +150,7 @@ export const ProyectoPantalla: React.FC<{ id: string }> = ({ id }) => {
       {p.error && (
         <div className="aviso mal">
           <span style={{ flex: 1 }}>{p.error}</span>
-          {p.estado === "error" && <button onClick={async () => { await api.reintentar(id); recargar(); }}>↻ Reintentar</button>}
+          {p.estado === "error" && <button onClick={() => api.reintentar(id).then(recargar, (e) => avisar((e as Error).message, true))}>↻ Reintentar</button>}
         </div>
       )}
       {ocupado && (

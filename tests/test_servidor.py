@@ -165,3 +165,24 @@ def test_reintentar_tras_error(cliente, proyecto, raiz, cola):
     q = cargar(raiz, proyecto.id)
     assert q.estado == "en_cola" and q.error is None
     assert [(t["tipo"], t["pid"]) for t in cola.estado()] == [("procesar", proyecto.id)]
+
+
+def test_reintentar_sin_video_pide_reimportar(cliente, proyecto, raiz, cola):
+    p = cargar(raiz, proyecto.id)
+    p.estado = "error"
+    guardar(raiz, p)
+    (carpeta(raiz, p.id) / p.fuente).unlink()
+    r = cliente.post(f"/api/proyectos/{proyecto.id}/reintentar")
+    assert r.status_code == 409 and "arrastr" in r.json()["detail"]
+    assert cola.estado() == []
+
+
+def test_subir_video_ilegible_no_encola(cliente, cola, monkeypatch):
+    import clipper
+
+    def no_se_lee(ruta):
+        raise SystemExit("No se puede leer")
+
+    monkeypatch.setattr(clipper, "analizar_archivo", no_se_lee)
+    r = cliente.post("/api/subir", files={"archivos": ("roto.mp4", b"basura", "video/mp4")})
+    assert r.status_code == 200 and cola.estado() == []

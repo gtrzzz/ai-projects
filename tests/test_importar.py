@@ -115,3 +115,24 @@ def test_entrada_ignora_lo_que_aun_se_copia(tmp_path):
     hace_un_rato = time.time() - 60
     os.utime(viejo, (hace_un_rato, hace_un_rato))
     assert imp.buscar_entrada(tmp_path / "entrada") == [viejo]
+
+
+def test_video_ilegible_queda_en_error_sin_copia(tmp_path, monkeypatch):
+    """Un vídeo dañado no deja una copia huérfana ni se vuelve a copiar en bucle; al arreglarlo se puede reimportar."""
+    def no_se_lee(ruta):
+        raise SystemExit(f"No se puede leer {ruta}")
+
+    monkeypatch.setattr(clipper, "analizar_archivo", no_se_lee)
+    raiz = tmp_path / "app"
+    origen = video(tmp_path / "usb/roto.mp4")
+    p = imp.importar(origen, raiz, AJUSTES_POR_DEFECTO)
+    assert p.estado == "error" and "leer" in p.error
+    assert not (carpeta(raiz, p.id) / p.fuente).exists()
+    assert imp.pendientes([origen], raiz) == []
+
+    monkeypatch.setattr(clipper, "analizar_archivo",
+                        lambda ruta: clipper.InfoVideo(duracion=60.0, ancho=1920, alto=1080, hdr=False,
+                                                       tiene_audio=True, fps=60.0))
+    q = imp.importar(origen, raiz, AJUSTES_POR_DEFECTO)
+    assert q.id == p.id and q.estado == "en_cola" and q.duracion == 60.0
+    assert (carpeta(raiz, q.id) / q.fuente).exists()

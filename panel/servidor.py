@@ -112,7 +112,8 @@ def crear_app(raiz: Path, cola: trabajos.Cola | None = None, url_base: str = URL
             if Path(a.filename or "").suffix.lower() not in importar.EXTENSIONES:
                 raise HTTPException(422, f"{a.filename}: no es un vídeo (mp4, webm, mov o mkv).")
             p = importar.importar_subida(a.filename, a.file, a.size or 0, raiz, cargar_ajustes(raiz))
-            cola.encolar("procesar", p.id)
+            if p.estado == "en_cola":
+                cola.encolar("procesar", p.id)
             ids.append(p.id)
         return {"ids": ids}
 
@@ -212,6 +213,8 @@ def crear_app(raiz: Path, cola: trabajos.Cola | None = None, url_base: str = URL
     def reintentar(pid: str):
         with cerrojo:
             p = editable(pid)
+            if not (carpeta(raiz, pid) / p.fuente).exists():
+                raise HTTPException(409, "Falta el vídeo de este proyecto: vuelve a arrastrarlo al panel.")
             p.estado, p.error, p.progreso = "en_cola", None, 0.0
             guardar(raiz, p)
         cola.encolar("procesar", pid)
@@ -308,7 +311,8 @@ def cola_por_defecto(raiz: Path, url_base: str) -> trabajos.Cola:
 
     def hacer_importar(ruta: str) -> None:
         p = importar.importar(Path(ruta), raiz, cargar_ajustes(raiz))
-        cola.encolar("procesar", p.id)
+        if p.estado == "en_cola":
+            cola.encolar("procesar", p.id)
 
     cola = trabajos.Cola({
         "importar": hacer_importar,
