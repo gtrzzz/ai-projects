@@ -42,9 +42,10 @@ def _solapa(a: Momento, b: Momento) -> bool:
 
 
 def proponer(p: Proyecto, an: detector.Analisis | None, palabras: list, ajustes: dict) -> list[Momento]:
-    """Momentos propuestos según el modo; conserva los aprobados, renderizados y editados a mano."""
+    """Momentos propuestos según el modo. Conserva lo que el usuario ya decidió (aprobados, renderizados,
+    descartados y editados a mano); los nuevos que se solapan con eso no se proponen."""
     o = p.opciones
-    conservados = [m for m in p.momentos if m.estado in ("aprobado", "renderizado") or m.editado]
+    conservados = [m for m in p.momentos if m.estado in ("aprobado", "renderizado", "descartado") or m.editado]
     zoom = lambda ini, fin: (detector.zoom_automatico(an, ini, fin, ajustes["zoom_percentil"],  # noqa: E731
                                                       ajustes["zoom_factor_mediana"]) if an else None)
     nuevos: list[Momento] = []
@@ -88,18 +89,23 @@ def procesar(raiz: Path, pid: str, ajustes: dict, cola: "Cola | None" = None) ->
         palabras = palabras_de(raiz, pid)
 
         _paso(raiz, p, "analizando", 0.6)
+        # solo se proponen momentos la primera vez o si el análisis es nuevo (p. ej. otro idioma):
+        # reintentar o reimportar tras liberar espacio no toca lo que ya decidió el usuario
+        proponer_ahora = not p.momentos or not (d / ANALISIS).exists()
         if not (d / ANALISIS).exists():
             an = detector.analizar(d / p.preparado, palabras)
             (d / ANALISIS).write_text(json.dumps(detector.analisis_a_dict(an)), encoding="utf-8")
 
-        p.momentos = proponer(p, analisis_de(raiz, pid), palabras, ajustes)
-        if not ajustes.get("revisar_antes", True):
+        sin_revision = proponer_ahora and not ajustes.get("revisar_antes", True)
+        if proponer_ahora:
+            p.momentos = proponer(p, analisis_de(raiz, pid), palabras, ajustes)
+        if sin_revision:
             for m in p.momentos:
                 if m.estado == "propuesto":
                     m.estado = "aprobado"
         p.error = None
         _paso(raiz, p, "listo", 1.0)
-        if not ajustes.get("revisar_antes", True) and cola is not None:
+        if sin_revision and cola is not None:
             cola.encolar("render", pid)
     except (Exception, SystemExit) as e:
         p.estado, p.error = "error", str(e) or type(e).__name__

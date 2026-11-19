@@ -158,3 +158,23 @@ def test_proponer_no_pasa_del_final(tmp_path):
     s[190:201] = [1.0] * 11
     ms = tr.proponer(p, analisis_con_puntuacion(s), [], AJUSTES_POR_DEFECTO)
     assert ms and all(m.fin <= 200.7 for m in ms)
+
+
+def test_reproponer_respeta_descartados(tmp_path):
+    p = nuevo_proyecto(tmp_path)
+    p.momentos = [Momento(id="no", inicio=220.0, fin=260.0, titulo="Malo", estado="descartado")]
+    ms = tr.proponer(p, partida_con_picos(), [], AJUSTES_POR_DEFECTO)
+    assert [m.estado for m in ms if m.id == "no"] == ["descartado"]
+    assert all(m.fin <= 220.0 or m.inicio >= 260.0 for m in ms if m.id != "no")
+
+
+def test_procesar_de_nuevo_no_cambia_momentos(tmp_path, falsos):
+    """Reintentar o reimportar tras liberar espacio conserva lo que ya decidió el usuario."""
+    nuevo_proyecto(tmp_path)
+    tr.procesar(tmp_path, "p1", AJUSTES_POR_DEFECTO)
+    p = cargar(tmp_path, "p1")
+    p.momentos[0].estado = "descartado"
+    guardar(tmp_path, p)
+    antes = [(m.id, m.estado) for m in p.momentos]
+    tr.procesar(tmp_path, "p1", dict(AJUSTES_POR_DEFECTO, revisar_antes=False), tr.Cola({}))
+    assert [(m.id, m.estado) for m in cargar(tmp_path, "p1").momentos] == antes
