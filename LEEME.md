@@ -10,10 +10,39 @@ Cada vídeo sale editado con **Remotion**: gancho arriba, subtítulos palabra a 
 en amarillo, emojis automáticos según lo que dices (💰 🚔 🐊 💥…), zoom con sacudida en el momento clave,
 barra de progreso y "Sígueme para más" al final.
 
+## Panel visual (recomendado)
+
+Doble clic en **`panel.bat`**: se abre el panel en tu navegador (deja abierta la ventana negra mientras lo usas).
+Todo funciona en tu PC, sin internet salvo la fuente de los textos.
+
+1. **Añadir vídeos.** Conecta el USB de la PS5 y pulsa **Importar** en el aviso que sale. También puedes
+   arrastrar vídeos al panel (p. ej. de otros creadores) o meterlos en la carpeta `entrada`: se importan solos.
+   Cada vídeo se transcribe y se analiza sin que tengas que hacer nada.
+2. **Revisar antes de renderizar.** Entra en el vídeo. Cada momento se ve ya con el diseño final (gancho,
+   subtítulos, emojis, zoom) **sin esperar al render**. Puedes:
+   - cambiar el título (🎲 para otro gancho), mover inicio y fin (±1 s o arrastrando los bordes en la línea de
+     tiempo), quitar el zoom o moverlo arrastrando el ◆;
+   - crear un momento nuevo arrastrando sobre una zona vacía de la línea de tiempo;
+   - elegir cómo se buscan los momentos (automático, vídeo entero o los marco yo), el número de clips
+     (con *exacto* llega a ese número aunque algunos sean flojos), el formato y el idioma de la voz;
+   - aprobar con **A**, descartar con **D**, pasar de uno a otro con **J**/**K** y reproducir con **Espacio**.
+3. **Renderizar aprobados.** Solo se renderiza lo aprobado, en segundo plano. Si luego cambias un clip ya
+   renderizado, al volver a pulsar se rehace solo ese.
+4. **Publicar.** Para cada clip: botones para copiar el texto de TikTok, Reels y Shorts, la mejor hora
+   sugerida y casillas de *Subido*. Los mp4 están en `salida/<vídeo>/`.
+5. **Liberar espacio.** Cuando tengas los clips, el botón 🧹 del vídeo borra el original y el preparado
+   (los clips se quedan). Ese vídeo ya no se podrá editar salvo que lo vuelvas a importar.
+
+En **⚙ Ajustes** cambias los valores por defecto, las horas sugeridas, el zoom automático y los textos
+(ganchos, hashtags, "Sígueme…") sin tocar archivos.
+
+`procesar.bat` y los comandos de abajo siguen funcionando igual que antes.
+
 ## 1. Instalación (una vez)
 
 Doble clic en **`instalar.bat`**. Necesita Python 3.11+, Node.js 18+ y ffmpeg (ya los tienes).
 La primera vez que se generen subtítulos se descarga el modelo de Whisper (~1,6 GB).
+**Si ya lo tenías instalado, vuelve a ejecutar `instalar.bat`** para añadir el panel.
 
 Opcional: para la IA local gratuita (correcciones escritas con tus palabras), sigue el apartado
 **7. IA local**.

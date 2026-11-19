@@ -8,9 +8,11 @@ echo === Remotion (edicion animada) ===
 pushd remotion
 call npm ci --no-fund --no-audit
 call npx remotion browser ensure
+echo === Panel visual ===
+call npm run panel:build
 popd
 if not exist entrada mkdir entrada
 if not exist salida mkdir salida
 echo.
-echo Listo. Mete tus clips o partidas en la carpeta "entrada" y ejecuta procesar.bat
+echo Listo. Haz doble clic en panel.bat para abrir el panel (o usa procesar.bat como antes)
 pause
