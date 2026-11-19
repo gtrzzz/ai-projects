@@ -15,6 +15,9 @@ barra de progreso y "Sígueme para más" al final.
 Doble clic en **`instalar.bat`**. Necesita Python 3.11+, Node.js 18+ y ffmpeg (ya los tienes).
 La primera vez que se generen subtítulos se descarga el modelo de Whisper (~1,6 GB).
 
+Opcional: para la IA local gratuita (correcciones escritas con tus palabras), sigue el apartado
+**7. IA local**.
+
 ## 2. Configurar la PS5
 
 - **Ajustes → Capturas y emisiones → Capturas**: vídeo en **1080p** y **60 fps**.
@@ -117,3 +120,106 @@ Abre una terminal en esta carpeta.
 - **Programar publicaciones**: TikTok (web → Programar), Instagram (Meta Business Suite) y
   YouTube Studio permiten programar gratis.
 - **Reels y Shorts** admiten como máximo 3 minutos; el `.txt` te avisa si te pasas.
+
+## 7. IA local (gratis, sin cuentas)
+
+Esto deja el PC preparado para la función de **correcciones escritas**: verás un clip, escribirás algo como
+*"empieza 3 segundos antes y quítale el zoom"* y la app lo convertirá en cambios concretos (inicio, fin, zoom,
+título, estilo) y volverá a renderizar. **Esa función todavía no está hecha**: este apartado solo prepara la IA
+para cuando esté.
+
+Todo funciona en tu PC: sin pagar, sin cuentas y sin internet una vez descargado el modelo.
+La IA **no ve el vídeo**: trabaja con lo que la app ya sabe del clip (tiempos, transcripción, puntuaciones).
+
+### Por qué este montaje
+
+Con una **RTX 5070 (12 GB de VRAM)** y 32 GB de RAM, lo que limita es la VRAM, porque varias cosas usan la gráfica:
+
+| Qué | VRAM aproximada |
+|---|---|
+| Whisper `large-v3-turbo` (subtítulos) | 2-3 GB |
+| IA `qwen3:8b` (correcciones) | 5-6 GB |
+| Renderizado (NVENC + Chrome de Remotion) | <1 GB |
+
+Cabe todo a la vez con margen. Se usa **Ollama** porque es gratis, se instala con un clic, usa la gráfica
+NVIDIA sin configurar nada y deja un servicio en segundo plano al que la app puede llamar.
+
+### 7.1 Driver de NVIDIA
+
+1. Abre la **app de NVIDIA** → Controladores → instala el último (Game Ready o Studio, cualquiera vale).
+   Las RTX 50 necesitan un driver reciente.
+2. Comprueba en una terminal (tecla Windows → escribe `terminal` → Enter):
+
+   ```bash
+   nvidia-smi
+   ```
+
+   Debe salir **RTX 5070** y, arriba a la derecha, **CUDA Version 12.8** o mayor.
+
+### 7.2 Instalar Ollama
+
+1. Descarga **OllamaSetup.exe** de [ollama.com/download](https://ollama.com/download) e instálalo.
+2. Se queda como icono de llama en la bandeja del sistema (junto al reloj) y arranca solo con Windows.
+3. Comprueba en una terminal **nueva**:
+
+   ```bash
+   ollama --version
+   ```
+
+**Opcional: guardar los modelos en otro disco** (por defecto van a `C:\Users\<tú>\.ollama`):
+
+1. Tecla Windows → escribe `variables de entorno` → **Editar las variables de entorno de tu cuenta**.
+2. **Nueva…** → Nombre: `OLLAMA_MODELS` · Valor: por ejemplo `D:\ollama\modelos`.
+3. Cierra Ollama (clic derecho en el icono → Quit) y vuelve a abrirlo.
+
+### 7.3 Descargar el modelo
+
+```bash
+ollama pull qwen3:8b
+```
+
+Son unos 5 GB. Se elige **Qwen3 8B** porque entiende bien el español, sigue instrucciones con precisión y es rápido.
+Además, Ollama puede obligarle a responder en un formato fijo, así la app recibe siempre cambios válidos.
+
+| Modelo | Tamaño | Cuándo usarlo |
+|---|---|---|
+| `qwen3:8b` (recomendado) | ~5 GB | Lo normal: rápido y cabe junto a Whisper |
+| `qwen3:14b` | ~9 GB | Si el 8b entiende mal tus correcciones. Más lento y justo de VRAM con Whisper activo |
+| `qwen3:4b` | ~2,5 GB | Si quieres ir aún más rápido o el PC va justo |
+
+Prueba que responde (escribe `/bye` para salir):
+
+```bash
+ollama run qwen3:8b "Responde solo con un número: ¿cuántos segundos son 1:15?"
+```
+
+### 7.4 Comprobar que la app podrá usarlo
+
+La app hablará con Ollama en `http://localhost:11434`. Comprueba que el servicio está activo:
+
+```bash
+curl.exe http://localhost:11434/api/tags
+```
+
+Debe salir un texto que incluya `qwen3:8b`.
+
+### 7.5 Que la IA no robe gráfica al renderizar
+
+Ollama mantiene el modelo cargado en la VRAM 5 minutos después de usarlo. Para ver qué hay cargado y liberarlo:
+
+```bash
+ollama ps
+```
+
+```bash
+ollama stop qwen3:8b
+```
+
+En `ollama ps`, la columna **PROCESSOR** debe decir **100% GPU**. Si dice CPU, va mucho más lento:
+actualiza el driver (7.1) y Ollama, y reinicia el PC.
+
+### Problemas típicos
+
+- **`ollama` no se reconoce como comando**: cierra y abre la terminal; si sigue, reinicia el PC.
+- **Responde muy lento**: mira `ollama ps` (debe ser GPU) y cierra juegos u otras apps que usen la gráfica.
+- **Se queda sin VRAM con Whisper a la vez**: usa `qwen3:4b` o no transcribas mientras corriges.
