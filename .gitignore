@@ -22,3 +22,8 @@ remotion/out/
 .DS_Store
 Thumbs.db
 .superpowers/
+
+# Panel
+proyectos/
+ajustes.json
+remotion/panel-dist/
