@@ -343,6 +343,16 @@ class Trabajo:
     origen: str = ""                # para el informe: "partida.mp4 12:30-12:58"
     motivos: dict = field(default_factory=dict)
     puntuacion: float | None = None
+    # Remotion compone el vertical: fuente (sin componer), tramo y formato
+    fuente: Path | None = None
+    inicio: float = 0.0
+    fin: float | None = None
+    modo: str = "base"
+    centro: float = 0.5
+    fps: float = 60.0
+    fuente_ancho: int = W
+    fuente_alto: int = H
+    video_url: str | None = None    # el panel sirve el vídeo por HTTP
 
 
 def carpeta_base(motor: str) -> Path:
@@ -366,6 +376,7 @@ def finalizar(trabajos: list[Trabajo], motor: str) -> None:
     else:
         for t in trabajos:
             _render_ffmpeg_textos(t)
+    _fuente_en_tmp.cache_clear()
     for t in trabajos:
         t.base.unlink(missing_ok=True)
         if t.palabras:
@@ -383,40 +394,65 @@ def _render_ffmpeg_textos(t: Trabajo) -> None:
                  cwd=tmp)
 
 
-def _render_remotion(trabajos: list[Trabajo]) -> None:
-    p = cargar_plantillas()
-    lista = []
-    for t in trabajos:
-        cta = p.get("cta") if t.tipo not in ("decide",) else None
-        lista.append({
-            "salida": str(t.salida),
-            "props": {
-                "video": f"_tmp/{t.base.name}",
-                "duracion": round(t.duracion, 3),
-                "fps": 60,
-                "titulo": t.titulo,
-                "palabras": [{"i": round(a, 3), "f": round(b, 3), "t": w} for a, b, w in t.palabras],
-                "zoomEn": t.zoom_en,
-                "etiquetas": [{"texto": e, "y": y} for e, y in t.etiquetas],
-                "encuesta": {"a": t.encuesta[0], "b": t.encuesta[1]} if t.encuesta else None,
-                "cta": cta,
-                "tituloY": t.titulo_y,
-                "subsY": t.subs_y,
-            },
-        })
+def props_remotion(t: Trabajo, cta: str | None) -> dict:
+    """Las props de ClipProps (remotion/src/tipos.ts) para un trabajo."""
+    fin = t.fin if t.fin is not None else t.inicio + t.duracion
+    video = t.video_url or f"_tmp/{(t.fuente or t.base).name}"
+    return {
+        "video": video,
+        "inicio": round(t.inicio, 3),
+        "fin": round(fin, 3),
+        "modo": t.modo,
+        "centro": t.centro,
+        "fuenteAncho": t.fuente_ancho,
+        "fuenteAlto": t.fuente_alto,
+        "duracion": round(fin - t.inicio, 3),
+        "fps": t.fps,
+        "titulo": t.titulo,
+        "palabras": [{"i": round(a, 3), "f": round(b, 3), "t": w} for a, b, w in t.palabras],
+        "zoomEn": t.zoom_en,
+        "etiquetas": [{"texto": e, "y": y} for e, y in t.etiquetas],
+        "encuesta": {"a": t.encuesta[0], "b": t.encuesta[1]} if t.encuesta else None,
+        "cta": cta,
+        "tituloY": t.titulo_y,
+        "subsY": t.subs_y,
+    }
+
+
+PROGRESO_REMOTION = re.compile(r"\[remotion\] (\d+)/\d+ \S.* (\d+)%")
+
+
+def render_remotion(lista: list[tuple[dict, Path]], al_progresar=None) -> None:
+    """Renderiza [(props, salida)] con render.mjs. `al_progresar(n, pct)` recibe el avance."""
+    datos = {"trabajos": [{"props": pr, "salida": str(sal)} for pr, sal in lista], "concurrencia": None}
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
-        json.dump({"trabajos": lista, "concurrencia": None}, f, ensure_ascii=False)
+        json.dump(datos, f, ensure_ascii=False)
         ruta_json = f.name
     log(f"Remotion: renderizando {len(lista)} vídeo(s)...")
     try:
-        r = subprocess.run(["node", str(REMOTION / "render.mjs"), ruta_json], cwd=REMOTION)
-        if r.returncode != 0:
+        proc = subprocess.Popen(["node", str(REMOTION / "render.mjs"), ruta_json], cwd=REMOTION,
+                                stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+        for linea in proc.stdout:
+            sys.stdout.write(linea)
+            m = PROGRESO_REMOTION.search(linea)
+            if m and al_progresar:
+                al_progresar(int(m.group(1)), int(m.group(2)))
+        if proc.wait() != 0:
             raise SystemExit("Remotion falló (mira el error de arriba). Puedes usar --motor ffmpeg.")
     finally:
         os.unlink(ruta_json)
 
 
-def escribir_publicacion(t: Trabajo) -> None:
+def cta_para(tipo: str) -> str | None:
+    return cargar_plantillas().get("cta") if tipo not in ("decide",) else None
+
+
+def _render_remotion(trabajos: list[Trabajo]) -> None:
+    render_remotion([(props_remotion(t, cta_para(t.tipo)), t.salida) for t in trabajos])
+
+
+def textos_publicacion(t: Trabajo) -> dict[str, str]:
+    """Texto para pegar en cada plataforma (lo mismo que va al _publicar.txt)."""
     p = cargar_plantillas()
     tp = p["tipos"].get(t.tipo, p["tipos"]["general"])
     gancho = t.titulo or tp["ganchos"][0]
@@ -424,33 +460,36 @@ def escribir_publicacion(t: Trabajo) -> None:
     tags = lambda n: " ".join(etiquetas[:n])  # noqa: E731
     aviso = ""
     if t.duracion > 180:
-        aviso = (f"\n!! Dura {t.duracion:.0f}s: Reels y Shorts admiten como máximo 3 min. "
-                 "Recórtalo con --inicio/--fin para esas plataformas.\n")
-    transcripcion = " ".join(w for _, _, w in t.palabras)
+        aviso = (f"!! Dura {t.duracion:.0f}s: Reels y Shorts admiten como máximo 3 min. "
+                 "Recórtalo con --inicio/--fin para esas plataformas.")
+    return {
+        "tiktok": f"{gancho} {tp['pregunta']}\n{tags(5)}",
+        "reels": f"{gancho}\n{tp['pregunta']} 👇\n.\n{tags(8)}",
+        "shorts": (f"Título (máx. 100 caracteres):\n{gancho[:90]} #Shorts\nDescripción:\n{tp['pregunta']}\n"
+                   f"{tp['descripcion_yt']}\n{tags(3)}"),
+        "transcripcion": " ".join(w for _, _, w in t.palabras),
+        "aviso": aviso,
+    }
+
+
+def escribir_publicacion(t: Trabajo) -> None:
+    x = textos_publicacion(t)
+    aviso = f"\n{x['aviso']}\n" if x["aviso"] else ""
     texto = f"""==================== {t.salida.stem} ====================
 Duración: {t.duracion:.1f}s{aviso}
 {('Origen: ' + t.origen) if t.origen else ''}
 
 ----- TIKTOK -----
-{gancho} {tp['pregunta']}
-{tags(5)}
+{x['tiktok']}
 
 ----- INSTAGRAM REELS -----
-{gancho}
-{tp['pregunta']} 👇
-.
-{tags(8)}
+{x['reels']}
 
 ----- YOUTUBE SHORTS -----
-Título (máx. 100 caracteres):
-{gancho[:90]} #Shorts
-Descripción:
-{tp['pregunta']}
-{tp['descripcion_yt']}
-{tags(3)}
+{x['shorts']}
 
 ----- TRANSCRIPCIÓN (para revisar / reutilizar) -----
-{transcripcion or '(sin voz)'}
+{x['transcripcion'] or '(sin voz)'}
 """
     t.salida.with_name(t.salida.stem + "_publicar.txt").write_text(texto, encoding="utf-8")
 
@@ -500,16 +539,56 @@ def crear_base_vertical(entrada: Path, destino: Path, modo: str, centro: float,
     return duracion
 
 
+def crear_tramo_con_voz(entrada: Path, destino: Path, inicio: float | None, fin: float | None,
+                        voz: Path, volumen_juego: float = 0.3) -> float:
+    """Tramo del vídeo (en SDR, sin componer) con tu voz mezclada encima del juego."""
+    info = analizar_archivo(entrada)
+    duracion = (fin if fin is not None else info.duracion) - (inicio or 0)
+    filtro = f"[0:v]{filtro_hdr(info)}null[v]"
+    if info.tiene_audio:
+        filtro += f";[0:a]volume={volumen_juego}[ja];[ja][1:a]amix=inputs=2:duration=first:normalize=0[a]"
+    else:
+        filtro += ";[1:a]anull[a]"
+    ejecutar(["ffmpeg", "-y", "-v", "error", *recorte_tiempo(inicio, fin), "-i", str(entrada), "-i", str(voz),
+              "-filter_complex", filtro, "-map", "[v]", "-map", "[a]", *codificador(intermedio=True),
+              *AUDIO_SALIDA, *CONTENEDOR, "-t", f"{duracion:.3f}", str(destino)])
+    return duracion
+
+
+def preparar_fuente(entrada: Path, destino: Path) -> Path:
+    """Vídeo listo para Remotion: si es HDR lo pasa a SDR (con keyframes cada segundo para saltar rápido).
+    Si no es HDR devuelve `entrada` tal cual."""
+    info = analizar_archivo(entrada)
+    if not info.hdr:
+        return entrada
+    filtro = filtro_hdr(info).rstrip(",")
+    ejecutar(["ffmpeg", "-y", "-v", "error", "-i", str(entrada), "-vf", filtro, "-map", "0:v", "-map", "0:a?",
+              *codificador(intermedio=True), "-g", str(round(info.fps)), *AUDIO_SALIDA, *CONTENEDOR,
+              str(destino)])
+    return destino
+
+
+@functools.cache
+def _fuente_en_tmp(entrada: Path) -> Path:
+    """La fuente (preparada) dentro de remotion/public/_tmp, una vez por vídeo."""
+    destino = nueva_base("remotion")
+    if preparar_fuente(entrada, destino) == entrada:
+        try:
+            os.link(entrada, destino)
+        except OSError:
+            shutil.copy2(entrada, destino)
+    return destino
+
+
 def zoom_en_pico(entrada: Path, inicio: float | None, fin: float | None, palabras, duracion: float):
-    """Detecta el momento más intenso del clip para el zoom automático."""
+    """Zoom automático solo si el momento más intenso del clip destaca de verdad."""
     try:
         import detector
         an = detector.analizar(entrada, palabras, inicio, fin)
-        pico = detector.pico_relativo(an)
+        return detector.zoom_automatico(an, 0, duracion)
     except Exception as e:
         log(f"(sin zoom automático: {e})")
         return None
-    return pico + 0.3 if 1.0 <= pico <= duracion - 1.5 else None
 
 
 # --------------------------------------------------------------------------- comandos
@@ -539,14 +618,28 @@ def trabajo_vertical(a, entrada: Path, salida: Path, inicio=None, fin=None, moto
         if not a.sin_subs and (info.tiene_audio or voz):
             palabras = transcribir(voz or entrada, a.idioma, a.modelo,
                                    None if voz else inicio, None if voz else fin)
-    base = nueva_base(motor)
-    duracion = crear_base_vertical(entrada, base, a.modo, a.centro, inicio, fin, voz,
-                                   getattr(a, "volumen_juego", 0.3))
-    zoom = zoom_en_pico(entrada, inicio, fin, palabras, duracion) if motor == "remotion" else None
     encuesta = (a.opcion_a, a.opcion_b) if getattr(a, "opcion_a", None) and getattr(a, "opcion_b", None) else None
-    return Trabajo(base=base, salida=salida, duracion=duracion, titulo=titulo or a.titulo,
-                   tipo=a.tipo, palabras=palabras, zoom_en=zoom, encuesta=encuesta,
-                   origen=f"{entrada.name} {mmss(inicio or 0)}-{mmss(fin if fin is not None else info.duracion)}")
+    comun = dict(salida=salida, titulo=titulo or a.titulo, tipo=a.tipo, palabras=palabras, encuesta=encuesta,
+                 origen=f"{entrada.name} {mmss(inicio or 0)}-{mmss(fin if fin is not None else info.duracion)}")
+    if motor != "remotion":
+        base = nueva_base(motor)
+        duracion = crear_base_vertical(entrada, base, a.modo, a.centro, inicio, fin, voz,
+                                       getattr(a, "volumen_juego", 0.3))
+        return Trabajo(base=base, duracion=duracion, **comun)
+
+    # Remotion compone el vertical: solo hace falta la fuente (en SDR) y el tramo
+    dims = dict(modo=a.modo, centro=a.centro, fps=info.fps, fuente_ancho=info.ancho, fuente_alto=info.alto)
+    if voz:  # ffmpeg corta el tramo y mezcla tu voz; sin componer en vertical
+        base = nueva_base(motor)
+        duracion = crear_tramo_con_voz(entrada, base, inicio, fin, voz, getattr(a, "volumen_juego", 0.3))
+        t = Trabajo(base=base, fuente=base, inicio=0.0, fin=duracion, duracion=duracion, **dims, **comun)
+    else:
+        fuente = _fuente_en_tmp(entrada)
+        ini = inicio or 0.0
+        duracion = (fin if fin is not None else info.duracion) - ini
+        t = Trabajo(base=fuente, fuente=fuente, inicio=ini, fin=ini + duracion, duracion=duracion, **dims, **comun)
+    t.zoom_en = zoom_en_pico(entrada, inicio, fin, palabras, duracion)
+    return t
 
 
 def cmd_vertical(a) -> None:
@@ -601,7 +694,8 @@ def cmd_comparar(a) -> None:
 
     t = Trabajo(base=base, salida=salida, duracion=duracion, titulo=a.titulo, tipo="comparativa",
                 palabras=palabras, etiquetas=[(a.etiqueta_a, y_a), (a.etiqueta_b, y_b)],
-                titulo_y=190, subs_y=subs_y, origen=f"{ra.name} vs {rb.name}")
+                titulo_y=190, subs_y=subs_y, origen=f"{ra.name} vs {rb.name}",
+                fuente=base, inicio=0.0, fin=duracion, modo="base")
     finalizar([t], motor)
 
 
@@ -633,8 +727,7 @@ def procesar_auto(a, entrada: Path, motor: str) -> list[Trabajo]:
         trozo = recortar_palabras(palabras, s.inicio, s.fin)
         t = trabajo_vertical(a, entrada, salida, s.inicio, s.fin, motor, palabras=trozo, titulo=titulo)
         if motor == "remotion":
-            pico = s.pico - s.inicio
-            t.zoom_en = pico + 0.3 if 1.0 <= pico <= t.duracion - 1.5 else None
+            t.zoom_en = detector.zoom_automatico(an, s.inicio, s.fin)
         t.motivos, t.puntuacion = s.motivos, s.puntuacion
         trabajos.append(t)
     return trabajos
