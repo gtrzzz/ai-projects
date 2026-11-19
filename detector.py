@@ -51,6 +51,12 @@ class Segmento:
 
 # --------------------------------------------------------------------------- extracción de señales
 
+def _tiene_audio(ruta: Path) -> bool:
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index",
+                        "-of", "csv=p=0", str(ruta)], capture_output=True, text=True)
+    return bool(r.stdout.strip())
+
+
 def _extraer(ruta: Path, inicio: float | None, fin: float | None) -> tuple[np.ndarray, np.ndarray]:
     """Una sola pasada de ffmpeg: audio mono a 8 kHz y vídeo gris en miniatura a 4 fps."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -61,11 +67,14 @@ def _extraer(ruta: Path, inicio: float | None, fin: float | None) -> tuple[np.nd
         if fin is not None:
             rango += ["-t", f"{fin - (inicio or 0):.3f}"]
 
+        # sin pista de audio, ffmpeg falla si se le pide una salida de audio vacía
+        salida_audio = (["-map", "0:a:0", "-ac", "1", "-ar", str(AUDIO_SR), "-f", "s16le", str(a_raw)]
+                        if _tiene_audio(ruta) else [])
+
         def ejecutar(hw: list[str]) -> bool:
             cmd = ["ffmpeg", "-y", "-v", "error", *hw, *rango, "-i", str(ruta),
                    "-map", "0:v:0", "-vf", f"fps={VIDEO_FPS},scale={VIDEO_W}:{VIDEO_H},format=gray",
-                   "-f", "rawvideo", str(v_raw),
-                   "-map", "0:a:0?", "-ac", "1", "-ar", str(AUDIO_SR), "-f", "s16le", str(a_raw)]
+                   "-f", "rawvideo", str(v_raw), *salida_audio]
             return subprocess.run(cmd, capture_output=True).returncode == 0
 
         # decodificar en la GPU es mucho más rápido con partidas de horas
