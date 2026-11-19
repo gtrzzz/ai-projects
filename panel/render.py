@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import clipper
-from panel.proyecto import Momento, Proyecto, cargar, guardar, huella, necesita_render
+from panel.proyecto import Momento, Proyecto, cargar, carpeta, guardar, huella, necesita_render
 from panel.trabajos import palabras_de
 
 
@@ -69,7 +69,14 @@ def renderizar(raiz: Path, pid: str, ajustes: dict, url_base: str, al_progresar=
         if al_progresar:
             al_progresar(p.progreso)
 
+    tramos: list[Path] = []
     try:
+        d = carpeta(raiz, pid)
+        for _, t in trabajos:  # Remotion recibe solo el tramo de cada clip, no la grabación entera
+            tramo = clipper.nueva_base("remotion")
+            tramos.append(tramo)
+            dur = clipper.cortar_tramo(d / (p.preparado or p.fuente), tramo, t.inicio, t.fin)
+            t.fuente, t.video_url, t.inicio, t.fin = tramo, None, 0.0, dur
         clipper.render_remotion([(clipper.props_remotion(t, cta), t.salida) for _, t in trabajos], progreso)
         for m, t in trabajos:
             if t.palabras:
@@ -78,6 +85,9 @@ def renderizar(raiz: Path, pid: str, ajustes: dict, url_base: str, al_progresar=
             m.estado, m.huella = "renderizado", huella(p, m, cta)
     except (Exception, SystemExit) as e:
         p.error = f"El render falló: {e}"
+    finally:
+        for tramo in tramos:
+            tramo.unlink(missing_ok=True)
     p.estado, p.progreso = "listo", 1.0
     guardar(raiz, p)
     _actualizar_registro(raiz, p, ajustes)

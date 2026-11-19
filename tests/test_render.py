@@ -51,10 +51,16 @@ def render_falso(monkeypatch):
 
     def falso(lista, al_progresar=None):
         lotes.append(lista)
-        for _, salida in lista:
+        for props, salida in lista:
+            assert (clipper.REMOTION / "public" / props["video"]).exists()
             Path(salida).write_bytes(b"mp4")
 
+    def cortar(entrada, destino, inicio, fin):
+        Path(destino).write_bytes(b"tramo")
+        return round(fin - inicio, 3)
+
     monkeypatch.setattr(clipper, "render_remotion", falso)
+    monkeypatch.setattr(clipper, "cortar_tramo", cortar)
     return lotes
 
 
@@ -90,7 +96,16 @@ def test_fallo_de_render(tmp_path, monkeypatch):
         raise SystemExit("Remotion falló")
 
     monkeypatch.setattr(clipper, "render_remotion", roto)
+    monkeypatch.setattr(clipper, "cortar_tramo", lambda e, d, i, f: (Path(d).write_bytes(b"x"), f - i)[1])
     p = con_momentos(tmp_path, Momento(id="a", inicio=0, fin=20, titulo="A", estado="aprobado"))
     render.renderizar(tmp_path, p.id, AJUSTES_POR_DEFECTO, URL)
     q = cargar(tmp_path, p.id)
     assert q.estado == "listo" and "Remotion" in q.error and q.momentos[0].estado == "aprobado"
+
+
+def test_render_usa_solo_el_tramo(tmp_path, render_falso):
+    p = con_momentos(tmp_path, Momento(id="a", inicio=100, fin=120, titulo="A", estado="aprobado"))
+    render.renderizar(tmp_path, p.id, AJUSTES_POR_DEFECTO, URL)
+    ((props, _),) = render_falso[0]
+    assert props["video"].startswith("_tmp/") and props["inicio"] == 0 and props["fin"] == 20
+    assert not (clipper.REMOTION / "public" / props["video"]).exists()  # se borra al terminar

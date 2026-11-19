@@ -31,3 +31,12 @@ def test_analizar_video_sin_audio(tmp_path):
 def test_analizar_video_con_audio(tmp_path):
     v = hacer_video(tmp_path / "con.mp4", 12)
     assert detector.analizar(v, []).duracion == 12
+
+
+def test_cortar_tramo(tmp_path):
+    """Solo el tramo pedido, recodificado: Remotion no tiene que leer la grabación entera."""
+    v = hacer_video(tmp_path / "largo.mp4", 20)
+    dur = clipper.cortar_tramo(v, tmp_path / "tramo.mp4", 5.0, 12.0)
+    assert dur == 7.0
+    info = clipper.analizar_archivo(tmp_path / "tramo.mp4")
+    assert abs(info.duracion - 7.0) < 0.2 and info.tiene_audio

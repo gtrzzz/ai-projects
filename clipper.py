@@ -381,7 +381,6 @@ def finalizar(trabajos: list[Trabajo], motor: str) -> None:
     else:
         for t in trabajos:
             _render_ffmpeg_textos(t)
-    _fuente_en_tmp.cache_clear()
     for t in trabajos:
         t.base.unlink(missing_ok=True)
         if t.palabras:
@@ -573,16 +572,16 @@ def preparar_fuente(entrada: Path, destino: Path) -> Path:
     return destino
 
 
-@functools.cache
-def _fuente_en_tmp(entrada: Path) -> Path:
-    """La fuente (preparada) dentro de remotion/public/_tmp, una vez por vídeo."""
-    destino = nueva_base("remotion")
-    if preparar_fuente(entrada, destino) == entrada:
-        try:
-            os.link(entrada, destino)
-        except OSError:
-            shutil.copy2(entrada, destino)
-    return destino
+def cortar_tramo(entrada: Path, destino: Path, inicio: float | None, fin: float | None) -> float:
+    """Solo el tramo del clip (en SDR si la fuente es HDR), sin componer: Remotion copia entero el vídeo que
+    recibe, así que pasarle la grabación completa costaría GB por clip. Devuelve la duración."""
+    info = analizar_archivo(entrada)
+    duracion = round((fin if fin is not None else info.duracion) - (inicio or 0), 3)
+    filtro = ["-vf", filtro_hdr(info).rstrip(",")] if info.hdr else []
+    ejecutar(["ffmpeg", "-y", "-v", "error", *recorte_tiempo(inicio, fin), "-i", str(entrada), *filtro,
+              "-map", "0:v:0", "-map", "0:a?", *codificador(intermedio=True), *AUDIO_SALIDA, *CONTENEDOR,
+              "-t", f"{duracion:.3f}", str(destino)])
+    return duracion
 
 
 def zoom_en_pico(entrada: Path, inicio: float | None, fin: float | None, palabras, duracion: float):
@@ -639,10 +638,9 @@ def trabajo_vertical(a, entrada: Path, salida: Path, inicio=None, fin=None, moto
         duracion = crear_tramo_con_voz(entrada, base, inicio, fin, voz, getattr(a, "volumen_juego", 0.3))
         t = Trabajo(base=base, fuente=base, inicio=0.0, fin=duracion, duracion=duracion, **dims, **comun)
     else:
-        fuente = _fuente_en_tmp(entrada)
-        ini = inicio or 0.0
-        duracion = (fin if fin is not None else info.duracion) - ini
-        t = Trabajo(base=fuente, fuente=fuente, inicio=ini, fin=ini + duracion, duracion=duracion, **dims, **comun)
+        base = nueva_base(motor)
+        duracion = cortar_tramo(entrada, base, inicio, fin)
+        t = Trabajo(base=base, fuente=base, inicio=0.0, fin=duracion, duracion=duracion, **dims, **comun)
     t.zoom_en = zoom_en_pico(entrada, inicio, fin, palabras, duracion)
     return t
 
