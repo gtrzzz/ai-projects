@@ -155,3 +155,13 @@ def test_plantillas_invalidas(cliente):
 def test_publicar_vacio(cliente, proyecto):
     d = cliente.get("/api/publicar").json()
     assert d["clips"] == [] and set(d["franjas"]) == {"tiktok", "reels", "shorts"}
+
+
+def test_reintentar_tras_error(cliente, proyecto, raiz, cola):
+    p = cargar(raiz, proyecto.id)
+    p.estado, p.error = "error", "algo falló"
+    guardar(raiz, p)
+    assert cliente.post(f"/api/proyectos/{proyecto.id}/reintentar").status_code == 200
+    q = cargar(raiz, proyecto.id)
+    assert q.estado == "en_cola" and q.error is None
+    assert [(t["tipo"], t["pid"]) for t in cola.estado()] == [("procesar", proyecto.id)]

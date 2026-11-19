@@ -123,6 +123,7 @@ export const api = {
   momento: (id: string, mid: string, cambios: Partial<Momento>) =>
     pedir<Momento>("PATCH", `/api/proyectos/${id}/momentos/${mid}`, cambios),
   props: (id: string, mid: string) => pedir<ClipProps>("GET", `/api/proyectos/${id}/props/${mid}`),
+  reintentar: (id: string) => pedir("POST", `/api/proyectos/${id}/reintentar`),
   renderizar: (id: string) => pedir("POST", `/api/proyectos/${id}/renderizar`),
   liberar: (id: string) => pedir<{ liberado: number }>("POST", `/api/proyectos/${id}/liberar`),
   publicar: () => pedir<{ clips: ClipPublicar[]; franjas: Record<Plataforma, [string, string]> }>("GET", "/api/publicar"),

@@ -32,6 +32,7 @@ def test_busca_en_ps5_create(tmp_path):
 
 def test_buscar_entrada(tmp_path):
     a = video(tmp_path / "entrada/clip.MP4")
+    import os; os.utime(a, (0, 0))
     video(tmp_path / "entrada/notas.txt")
     assert imp.buscar_entrada(tmp_path / "entrada") == [a]
 
@@ -102,3 +103,15 @@ def test_video_vertical_entero_por_defecto(tmp_path, monkeypatch):
                                                        tiene_audio=True, fps=30.0))
     p = imp.importar(video(tmp_path / "usb/v.mp4"), tmp_path / "app", AJUSTES_POR_DEFECTO)
     assert p.opciones.formato == "blur"
+
+
+def test_entrada_ignora_lo_que_aun_se_copia(tmp_path):
+    """Un vídeo que se está copiando a `entrada` cambia de tamaño: no se importa hasta que lleva 5 s quieto."""
+    import os
+    import time
+
+    nuevo = video(tmp_path / "entrada/copiando.mp4")
+    viejo = video(tmp_path / "entrada/listo.mp4")
+    hace_un_rato = time.time() - 60
+    os.utime(viejo, (hace_un_rato, hace_un_rato))
+    assert imp.buscar_entrada(tmp_path / "entrada") == [viejo]

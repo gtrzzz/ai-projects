@@ -211,19 +211,24 @@ ALUCINACIONES = re.compile(
 def transcribir(audio_de: Path, idioma: str, modelo: str, inicio: float | None = None,
                 fin: float | None = None) -> list[tuple[float, float, str]]:
     """Palabras [(inicio, fin, texto)] con tiempos relativos al tramo indicado."""
+    import numpy as np
+
+    # Audio ya decodificado (16 kHz mono float32): faster-whisper no tiene que abrirlo con PyAV,
+    # cuya versión 19 rompió la llamada que usa faster-whisper 1.2.
     with tempfile.TemporaryDirectory() as tmp:
-        wav = Path(tmp) / "audio.wav"
+        crudo = Path(tmp) / "audio.f32"
         ejecutar(["ffmpeg", "-y", "-v", "error", *recorte_tiempo(inicio, fin), "-i", str(audio_de),
-                  "-vn", "-ac", "1", "-ar", "16000", str(wav)])
-        lang = None if idioma == "auto" else idioma
-        opciones = dict(language=lang, word_timestamps=True, vad_filter=True,
-                        condition_on_previous_text=False)
-        try:
-            segmentos = list(_cargar_whisper(modelo, "cuda").transcribe(str(wav), **opciones)[0])
-            log(f"Transcrito con GPU ({modelo})")
-        except Exception as e:  # sin CUDA utilizable -> CPU
-            log(f"GPU no disponible para Whisper ({type(e).__name__}); usando CPU con modelo 'small'")
-            segmentos = list(_cargar_whisper("small", "cpu").transcribe(str(wav), **opciones)[0])
+                  "-vn", "-ac", "1", "-ar", "16000", "-f", "f32le", str(crudo)])
+        audio = np.fromfile(crudo, dtype=np.float32)
+    lang = None if idioma == "auto" else idioma
+    opciones = dict(language=lang, word_timestamps=True, vad_filter=True,
+                    condition_on_previous_text=False)
+    try:
+        segmentos = list(_cargar_whisper(modelo, "cuda").transcribe(audio, **opciones)[0])
+        log(f"Transcrito con GPU ({modelo})")
+    except Exception as e:  # sin CUDA utilizable -> CPU
+        log(f"GPU no disponible para Whisper ({type(e).__name__}); usando CPU con modelo 'small'")
+        segmentos = list(_cargar_whisper("small", "cpu").transcribe(audio, **opciones)[0])
 
     palabras = []
     for s in segmentos:

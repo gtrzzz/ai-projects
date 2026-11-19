@@ -57,6 +57,9 @@ const Fila: React.FC<{ p: Resumen; recargar: () => void }> = ({ p, recargar }) =
             Revisar
           </button>
         </a>
+        {p.estado === "error" && (
+          <button onClick={async () => { await api.reintentar(p.id); recargar(); }}>↻ Reintentar</button>
+        )}
         {p.liberable > 0 && !ocupado && (
           <button className="peligro" onClick={liberar} title="Borra el original y el preparado; conserva los clips">
             🧹 Liberar {tamaño(p.liberable)}

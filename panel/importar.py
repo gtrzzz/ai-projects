@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import string
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO, Callable
@@ -37,10 +38,13 @@ def buscar_ps5(unidades: list[Path]) -> list[Path]:
     return [v for u in unidades for v in _videos_en(Path(u) / "PS5" / "CREATE")]
 
 
-def buscar_entrada(carpeta_entrada: Path) -> list[Path]:
+def buscar_entrada(carpeta_entrada: Path, quieto: float = 5.0) -> list[Path]:
+    """Vídeos de `entrada` que llevan `quieto` segundos sin cambiar (los que aún se copian, no)."""
     if not carpeta_entrada.is_dir():
         return []
-    return sorted(p for p in carpeta_entrada.iterdir() if p.is_file() and p.suffix.lower() in EXTENSIONES)
+    limite = time.time() - quieto
+    return sorted(p for p in carpeta_entrada.iterdir()
+                  if p.is_file() and p.suffix.lower() in EXTENSIONES and p.stat().st_mtime < limite)
 
 
 def clave_de(ruta: Path) -> str:

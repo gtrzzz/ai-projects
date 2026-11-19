@@ -208,6 +208,15 @@ def crear_app(raiz: Path, cola: trabajos.Cola | None = None, url_base: str = URL
         t = render.trabajo_de(p, m, trabajos.palabras_de(raiz, pid), url_base)
         return clipper.props_remotion(t, clipper.cta_para(p.opciones.tipo))
 
+    @app.post("/api/proyectos/{pid}/reintentar")
+    def reintentar(pid: str):
+        with cerrojo:
+            p = editable(pid)
+            p.estado, p.error, p.progreso = "en_cola", None, 0.0
+            guardar(raiz, p)
+        cola.encolar("procesar", pid)
+        return {"ok": True}
+
     @app.post("/api/proyectos/{pid}/renderizar")
     def renderizar(pid: str):
         editable(pid)
