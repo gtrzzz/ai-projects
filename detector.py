@@ -208,7 +208,8 @@ def _ajustar_a_frases(ini: float, fin: float, palabras, limite: float) -> tuple[
 
 def elegir_segmentos(an: Analisis, palabras=None, max_clips: int | None = None,
                      dur_min: float = 15, dur_obj: float = 25, dur_max: float = 60,
-                     separacion: float = 8) -> list[Segmento]:
+                     separacion: float = 8, exacto: bool = False) -> list[Segmento]:
+    """Mejores momentos sin solaparse. `exacto`: no para en el umbral de pico, sigue hasta `max_clips`."""
     s = an.puntuacion
     n = an.duracion
     if max_clips is None:  # ~1 clip cada 4 min de partida, entre 1 y 15
@@ -224,7 +225,7 @@ def elegir_segmentos(an: Analisis, palabras=None, max_clips: int | None = None,
     orden = np.argsort(s)[::-1]
 
     for pico in orden:
-        if len(elegidos) >= max_clips or s[pico] < umbral_pico:
+        if len(elegidos) >= max_clips or (s[pico] < umbral_pico and not exacto):
             break  # orden descendente: a partir de aquí ya nada destaca
         if ocupado[pico]:
             continue
@@ -260,6 +261,33 @@ def elegir_segmentos(an: Analisis, palabras=None, max_clips: int | None = None,
         elegidos.append(Segmento(round(ini, 2), round(fin, 2), float(pico), round(float(s[pico]), 3), motivos))
 
     return sorted(elegidos, key=lambda x: x.inicio)
+
+
+def zoom_automatico(an: Analisis, ini: float, fin: float, percentil: float = 85,
+                    factor_mediana: float = 1.6) -> float | None:
+    """Segundo (relativo a `ini`) para el zoom, solo si el pico del tramo destaca de verdad."""
+    a, b = max(0, int(ini)), min(len(an.puntuacion), int(np.ceil(fin)))
+    tramo = an.puntuacion[a:b]
+    if len(tramo) == 0:
+        return None
+    pico = float(tramo.max())
+    if pico <= np.percentile(an.puntuacion, percentil) or pico <= factor_mediana * float(np.median(tramo)):
+        return None
+    t = a + int(np.argmax(tramo)) - ini
+    if t < 1.0 or t > (fin - ini) - 1.5:
+        return None
+    return round(t + 0.3, 3)
+
+
+def analisis_a_dict(an: Analisis) -> dict:
+    lista = lambda x: [round(float(v), 4) for v in x]  # noqa: E731
+    return {"duracion": int(an.duracion), "puntuacion": lista(an.puntuacion),
+            "componentes": {k: lista(v) for k, v in an.componentes.items()}}
+
+
+def analisis_de_dict(d: dict) -> Analisis:
+    return Analisis(int(d["duracion"]), np.array(d["puntuacion"], dtype=float),
+                    {k: np.array(v, dtype=float) for k, v in d["componentes"].items()})
 
 
 def pico_relativo(an: Analisis) -> float:
